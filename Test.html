@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Zoom tự động Việt Nam → Kon Tum → Quảng Ngãi → Hoàng Sa</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css">
+
+<style>
+html, body { height:100%; margin:0; overflow:hidden; }
+#map { height:100%; }
+.topbar {
+  position:absolute; top:10px; left:10px;
+  z-index:1000;
+  background:rgba(255,255,255,0.9);
+  padding:10px; border-radius:8px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.2);
+}
+.bg-video { 
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  width: 100vw; 
+  height: 100vh; 
+  object-fit: cover; 
+  z-index: 9999;   
+  pointer-events: none; 
+}
+.btn {
+  padding:8px 12px; margin-right:6px;
+  border:none; background:#1976d2; color:white;
+  border-radius:6px; cursor:pointer;
+}
+.btn:disabled { background:#9bbde6; cursor:default; }
+
+/* VIDEO MODAL */
+#videoModal {
+  display:none; 
+  position:fixed; top:0; left:0; 
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.85);
+  z-index:999999;
+  justify-content:center; 
+  align-items:center;
+}
+#videoModal video {
+  max-height:85vh;
+  max-width:90vw;
+  border-radius:12px;
+  box-shadow:0 0 20px rgba(255,255,255,0.3);
+}
+</style>
+</head>
+<body>
+
+<!-- VIDEO MỞ ĐẦU -->
+<video autoplay muted class="bg-video"> 
+  <source src="intro.mp4" type="video/mp4"> 
+</video> 
+
+<div id="map"></div>
+
+<div class="topbar">
+  <div>Zoom sequence tự động</div>
+  <button class="btn" id="start">Bắt đầu</button>
+  <button class="btn" id="reset">Reset</button>
+</div>
+
+<!-- VIDEO MODAL POPUP -->
+<div id="videoModal">
+  <video id="modalVideo" controls autoplay></video>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+<script>
+// =============================
+// MAP KHỞI TẠO
+// =============================
+const map = L.map("map").setView([20, 0], 2);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 20,
+}).addTo(map);
+
+// =============================
+// DANH SÁCH VIDEO TƯƠNG ỨNG
+// =============================
+const videoList = {
+  "Kon Tum": "videos/kontum.mp4",
+  "Cồng Chiêng Tây Nguyên": "videos/congchieng.mp4",
+  "Thổ Cẩm Kon Tum": "videos/thocam_kontum.mp4",
+  "Lễ mừng lúa mới Kon Tum": "videos/luamoi.mp4",
+  "Nhà Rông Kon Tum": "videos/nharong.mp4",
+  "Nhà Thờ gỗ Kon Tum": "videos/nhathogo.mp4",
+
+  "Quảng Ngãi": "videos/quangngai.mp4",
+  "Thành cổ Châu Sa": "videos/chausa.mp4",
+  "Thổ Cẩm Quảng Ngãi": "videos/thocam_qn.mp4",
+  "Văn hóa Sa Huỳnh": "videos/sahuynh.mp4",
+
+  "Quần đảo Hoàng Sa": "videos/hoangsa.mp4",
+  "Đảo Lý Sơn": "videos/lyson.mp4",
+  "Cồng Chiêng Quảng Ngãi": "videos/congchieng_qn.mp4"
+};
+
+// =============================
+// MỞ VIDEO MODAL
+// =============================
+function openVideo(src) {
+  const modal = document.getElementById("videoModal");
+  const video = document.getElementById("modalVideo");
+
+  video.src = src;
+  modal.style.display = "flex";
+  video.play();
+}
+
+// CLICK BÊN NGOÀI → ĐÓNG VIDEO
+document.getElementById("videoModal").onclick = () => {
+  const modal = document.getElementById("videoModal");
+  const video = document.getElementById("modalVideo");
+  video.pause();
+  video.src = "";
+  modal.style.display = "none";
+};
+
+// =============================
+// MARKER CLUSTER
+// =============================
+const markers = L.markerClusterGroup();
+const markerMap = {}; 
+
+const data = [
+  {lat:14.3537, lng:107.9772, text:"Kon Tum"},
+  {lat:14.78306, lng:107.73278, text:"Cồng Chiêng Tây Nguyên"},
+  {lat:14.32932, lng:108.06449, text:"Thổ Cẩm Kon Tum"},
+  {lat:14.5625, lng:107.9865, text:"Lễ mừng lúa mới Kon Tum"},
+  {lat:14.58082, lng:108.27663, text:"Nhà Rông Kon Tum"},
+  {lat:14.585, lng:108.28, text:"Nhà Thờ gỗ Kon Tum"},
+
+  {lat:15.1250, lng:108.7970, text:"Quảng Ngãi"},
+  {lat:15.1201, lng:108.7980, text:"Thành cổ Châu Sa"},
+  {lat:14.98427, lng:108.53643, text:"Thổ Cẩm Quảng Ngãi"},
+
+  {lat:14.81, lng:108.96, text:"Văn hóa Sa Huỳnh"},
+  {lat:15.4445, lng:113.4820, text:"Quần đảo Hoàng Sa"},
+  {lat:15.065, lng:109.125, text:"Đảo Lý Sơn"},
+  {lat:15.2000, lng:108.4815, text:"Cồng Chiêng Quảng Ngãi"}
+];
+
+data.forEach(d => {
+  const key = `${d.lat},${d.lng}`;
+
+  const popupHTML = `
+    <b>${d.text}</b><br>
+    <button onclick="openVideo('${videoList[d.text]}')"
+      style="margin-top:6px;padding:6px 10px;border:none;
+      background:#d32f2f;color:white;border-radius:6px;cursor:pointer;">
+      Xem video
+    </button>
+  `;
+
+  const m = L.marker([d.lat, d.lng]).bindPopup(popupHTML, {autoClose:false});
+  markers.addLayer(m);
+  markerMap[key] = m;
+});
+
+map.addLayer(markers);
+
+// =============================
+function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+// =============================
+function safeFly(latlng, zoom, duration = 1.5){
+  return new Promise(resolve=>{
+    let done=false;
+    const finish = () => { if(!done){done=true; resolve();} };
+    map.once("moveend", finish);
+    setTimeout(finish, duration*1300);
+    map.flyTo(latlng, zoom, {duration});
+  });
+}
+
+// =============================
+async function showMarker(key){
+  const m = markerMap[key];
+  const latlng = m.getLatLng();
+
+  await safeFly(latlng, 10, 1.2);
+  await safeFly(latlng, 16, 1.2);
+
+  await new Promise(resolve=>{
+    let done=false;
+    const finish = () => { if(!done){done=true; resolve();} };
+    setTimeout(finish,1500);
+
+    markers.zoomToShowLayer(m, ()=>{
+      m.openPopup();
+      finish();
+    });
+  });
+
+  await delay(1200);
+}
+
+// =============================
+async function run() {
+  document.getElementById("start").disabled = true;
+
+  await safeFly([20,0], 2, 2);
+  await safeFly([16,108], 6, 2);
+
+  await showMarker("14.3537,107.9772");
+  await showMarker("14.78306,107.73278");
+  await showMarker("14.32932,108.06449");
+  await showMarker("14.5625,107.9865");
+  await showMarker("14.58082,108.27663");
+  await showMarker("14.585,108.28");
+
+  await showMarker("15.125,108.797");
+  await showMarker("15.1201,108.798");
+  await showMarker("14.98427,108.53643");
+
+  await showMarker("14.81,108.96");
+  await showMarker("15.4445,113.482");
+  await showMarker("15.065,109.125");
+  await showMarker("15.2,108.4815");
+
+  document.getElementById("start").disabled = false;
+}
+
+// VIDEO INTRO TỰ ẨN
+document.querySelector(".bg-video").addEventListener("ended", () => {
+  document.querySelector(".bg-video").style.display = "none";
+});
+
+// =============================
+document.getElementById("start").onclick = run;
+
+document.getElementById("reset").onclick = ()=>{
+  map.stop();
+  map.setView([20,0],2);
+  Object.values(markerMap).forEach(m=>m.closePopup());
+  document.getElementById("start").disabled = false;
+};
+</script>
+</body>
+</html>
